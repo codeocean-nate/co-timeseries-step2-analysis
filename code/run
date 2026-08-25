@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Code Ocean capsule entrypoint (time-series step 2: clean readings -> analysis CSVs).
+#
+# CO conventions: this script runs from the capsule root, input data assets are
+# mounted READ-ONLY under /data, and everything written to /results is captured
+# as the run's output. Lines printed to stdout show up in the Code Ocean run log.
+set -euo pipefail
+
+echo "[ts-step2] entrypoint starting (clean readings -> plot-ready analysis CSVs)"
+
+# Code Ocean appends the App Panel's values to this script as command-line
+# ARGUMENTS (not env vars). With "named_parameters": true each one arrives as a
+# SINGLE token shaped --param_name=value (equals sign, not a space), so the only
+# correct thing to do is forward "$@" verbatim and let argparse handle it.
+# exec replaces this shell with python3, so python's exit code is the capsule's
+# exit code (analyze.py prints its own "done" line).
+exec python3 "$(dirname "$0")/analyze.py" "$@"
