@@ -163,22 +163,48 @@ when nothing usable was found at all, a `notes` entry says the outputs are heade
 points at the reason. (Unlike step 1's version there is no `passed_through` field: this
 step copies no input into `/results`.)
 
-## Run parameters (App Panel)
+## Run parameters
 
-`.codeocean/app-panel.json` is what makes this capsule parameterizable. Code Ocean reads
-that committed file and materializes an App Panel form — no UI work required — and the
-file is read-only in the capsule IDE, so it can only arrive by `git push`. Because the
-panel sets `"named_parameters": true`, each value is appended to `code/run` as a single
-command-line argument shaped `--param_name=value` (equals sign, not a space); `code/run`
-forwards `"$@"` and `analyze.py` parses it with `argparse`. Values chosen this way are
-recorded on the computation and frozen onto the captured result asset as `app_parameters`,
-which is why the orchestrator app routes the user's choices through parameters instead of
-keeping them to itself. Adding a parameter here makes it appear in the orchestrator's GUI
-automatically — the app renders the panel it reads back from the capsule.
+Every parameter below is a **named run parameter**. A caller — the orchestrator app, the
+`codeocean` SDK, or the REST API — supplies `param_name=value` when it starts the run, and
+Code Ocean appends each one to `code/run` as a single command-line argument shaped
+`--param_name=value` (equals sign, not a space); `code/run` forwards `"$@"` and `analyze.py`
+parses it with `argparse`. Values chosen this way are recorded on the computation and frozen
+onto the captured result asset as `app_parameters`, which is why the orchestrator app routes
+the user's choices through run parameters instead of keeping them to itself.
+
+**No App Panel is required for this, and this capsule does not ship one.** That was measured
+on this capsule, on a live deployment (2026-08-26): with no panel of any kind, a run started
+with named parameters `resample_interval=1D` and `anomaly_z=2.5` recorded
+`["--resample_interval=1D", "--anomaly_z=2.5"]` as the argv it actually received in its own
+`manifest.json`, parsed both, and produced **62 buckets instead of the default 242**. The
+computation object records the same values. The parameter names, defaults and argv shape
+documented here are the whole contract.
+
+> ### Why there is no `.codeocean/app-panel.json` in this repo
+>
+> Measured live on a Code Ocean deployment, 2026-08-26. Committing that file does **not**
+> create an App Panel: a capsule imported from a repo containing it still shows *Create
+> App* in the App Builder and a plain **Reproducible Run** button, and committing, pushing
+> to the capsule's git remote and reopening the capsule all failed to materialize a panel.
+>
+> Worse, the file **bricks the capsule**. Every run request against a capsule containing it
+> came back:
+>
+> ```
+> 403 {"message":"corrupted object files","corrupted_object_files":[".codeocean/app-panel.json"]}
+> ```
+>
+> Five out of five: three capsules carrying the file all 403'd, two without it ran fine, and
+> deleting the file made the bricked ones runnable again. So the file is not shipped here,
+> and nothing in this demo depends on a panel existing.
+>
+> If you *want* a panel in the Code Ocean UI, build it in the **App Builder** (or via Aqua)
+> and let Code Ocean write the file itself. Never add one to a repo you clone from.
 
 | Argument | Label | Default | Meaning |
 |---|---|---|---|
-| `--resample_interval` | Resample interval | `6H` | bucket size; one of `1H`, `6H`, `12H`, `1D` (a dropdown on the panel) |
+| `--resample_interval` | Resample interval | `6H` | bucket size; one of `1H`, `6H`, `12H`, `1D` (the app renders it as a dropdown) |
 | `--rolling_window` | Rolling window (buckets) | `4` | buckets averaged into `rolling_mean`; `1` disables smoothing |
 | `--anomaly_z` | Anomaly threshold (robust z) | `3` | flag a bucket at `\|robust z\| >= this`; lower finds more |
 | `--top_n_anomalies` | Top N anomalies | `20` | rows kept in `anomalies.csv`, ranked by `\|robust z\|` descending |
@@ -187,14 +213,17 @@ automatically — the app renders the panel it reads back from the capsule.
 Every parameter is optional and the rules this capsule guarantees are the batch's
 non-negotiables:
 
-- **No parameters ⇒ the standard analysis.** The panel may not exist on every deployment,
-  so the demo must never depend on it.
+- **No parameters ⇒ the standard analysis.** A plain Reproducible Run supplies nothing at
+  all, so the defaults must be a demo-quality analysis on their own. (The run log says
+  `no run parameters supplied — using the App Panel defaults` in that case; the wording is
+  the script's own and predates the finding above — it means *this capsule's built-in
+  defaults*, and no panel is involved.)
 - **A bad value never fails the run.** `--rolling_window=0`, `--anomaly_z=abc`,
   `--top_n_anomalies=-1` and `--resample_interval=nonsense` each log a warning, fall back
   to the default and exit 0. A `--baseline_instrument` that isn't in the data warns and
   falls back to the first instrument alphabetically. An unrecognized parameter is noted and
-  ignored (`parse_known_args`), because a panel can gain a field before the code that reads
-  it is deployed. Every warning is printed to the run log **and** recorded in
+  ignored (`parse_known_args`), because a caller can start sending a new field before the
+  code that reads it is deployed. Every warning is printed to the run log **and** recorded in
   `manifest.json` under `parameter_warnings`.
 - **"Bad value" includes the ones `float()` accepts.** `nan`, `inf`, `-inf`, `Infinity` and
   `1e400` (which overflows to inf) all parse without raising, and `int()` on any of them
