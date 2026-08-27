@@ -1958,7 +1958,7 @@ def main(argv=None):
         log("no usable run parameters in the argument list — using the App "
             "Panel defaults")
     else:
-        log("no run parameters supplied — using the App Panel defaults")
+        log("no run parameters supplied — using this capsule's own defaults")
 
     # A blank value is not a rejection, so it is not a warning — but it does
     # make `effective_parameters` differ from what `parameters` records, and
