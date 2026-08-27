@@ -215,9 +215,7 @@ non-negotiables:
 
 - **No parameters ⇒ the standard analysis.** A plain Reproducible Run supplies nothing at
   all, so the defaults must be a demo-quality analysis on their own. (The run log says
-  `no run parameters supplied — using the App Panel defaults` in that case; the wording is
-  the script's own and predates the finding above — it means *this capsule's built-in
-  defaults*, and no panel is involved.)
+  `no run parameters supplied — using this capsule's own defaults` in that case.)
 - **A bad value never fails the run.** `--rolling_window=0`, `--anomaly_z=abc`,
   `--top_n_anomalies=-1` and `--resample_interval=nonsense` each log a warning, fall back
   to the default and exit 0. A `--baseline_instrument` that isn't in the data warns and
